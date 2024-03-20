@@ -18,41 +18,14 @@ provider:
             - "dynamodb:Scan"
           Resource:
             - { "Fn::GetAtt": ["CountriesTable", "Arn"] }
-
-functions:
-  createProduct:
-    handler: src/handlers.createCountry
-    events:
-      - httpApi:
-          path: /country
-          method: post
-  getProduct:
-    handler: src/handlers.getCountry
-    events:
-      - httpApi:
-          path: /country/{id}
-          method: get
-  updateProduct:
-    handler: src/handlers.updateCountry
-    events:
-      - httpApi:
-          path: /country/{id}
-          method: put
-  deleteProduct:
-    handler: src/handlers.deleteCountry
-    events:
-      - httpApi:
-          path: /country/{id}
-          method: delete
-  listProduct:
-    handler: src/handlers.listCountry
-    events:
-      - httpApi:
-          path: /country
-          method: get
-
-plugins:
-  - serverless-plugin-typescript
+        - Effect: Allow # Add separate IAM statement for NeighborsTable
+          Action:
+            - "dynamodb:PutItem"
+            - "dynamodb:GetItem"
+            - "dynamodb:DeleteItem"
+            - "dynamodb:Scan"
+          Resource:
+            - { "Fn::GetAtt": ["NeighborsTable", "Arn"] }
 
 resources:
   Resources:
@@ -69,3 +42,74 @@ resources:
         KeySchema:
           - AttributeName: countryID
             KeyType: HASH
+
+    NeighborsTable: # Define the new table for neighbors
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: NeighborsTable
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        AttributeDefinitions:
+          - AttributeName: countryId
+            AttributeType: S
+          - AttributeName: neighborId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: countryId
+            KeyType: HASH
+          - AttributeName: neighborId
+            KeyType: RANGE
+
+functions:
+  createCountry:
+    handler: src/handlers.createCountry
+    events:
+      - httpApi:
+          path: /country
+          method: post
+
+  getCountry:
+    handler: src/handlers.getCountry
+    events:
+      - httpApi:
+          path: /country/{id}
+          method: get
+
+  updateCountry:
+    handler: src/handlers.updateCountry
+    events:
+      - httpApi:
+          path: /country/{id}
+          method: put
+
+  deleteCountry:
+    handler: src/handlers.deleteCountry
+    events:
+      - httpApi:
+          path: /country/{id}
+          method: delete
+
+  getAllCountriesPaginated:
+    handler: src/handlers.getAllCountriesPaginated
+    events:
+      - httpApi:
+          path: /country
+          method: get
+
+  getCountryNeighbors: # Add new function for getting country neighbors
+    handler: src/handlers.getCountryNeighbors
+    events:
+      - httpApi:
+          path: /country/{id}/neighbour # Updated path for getting neighbors
+          method: get
+
+  addNeighbors: # Add new function for adding neighbors
+    handler: src/handlers.addNeighbors
+    events:
+      - httpApi:
+          path: /country/{id}/neighbor # Updated path for adding neighbors
+          method: post
+
+plugins:
+  - serverless-plugin-typescript
