@@ -16,6 +16,7 @@ provider:
             - "dynamodb:GetItem"
             - "dynamodb:DeleteItem"
             - "dynamodb:Scan"
+            - "dynamodb:BatchWriteItem"
           Resource:
             - { "Fn::GetAtt": ["CountriesTable", "Arn"] }
         - Effect: Allow # Add separate IAM statement for NeighborsTable
@@ -24,6 +25,7 @@ provider:
             - "dynamodb:GetItem"
             - "dynamodb:DeleteItem"
             - "dynamodb:Scan"
+            - "dynamodb:BatchWriteItem"
           Resource:
             - { "Fn::GetAtt": ["NeighborsTable", "Arn"] }
 

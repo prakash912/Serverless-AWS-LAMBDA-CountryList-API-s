@@ -1,5 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import AWS from "aws-sdk";
+import AWS, { DynamoDB } from "aws-sdk";
 import { v4 } from "uuid";
 import * as yup from "yup";
 
@@ -63,8 +63,13 @@ export const createCountry = async (event: APIGatewayProxyEvent): Promise<APIGat
       headers,
       body: JSON.stringify(countries),
     };
-  } catch (error) {
-    return handleError(error);
+  } catch (error: any) {
+    console.error("Error creating countries:", error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ message: "Internal Server Error", error: error.message }),
+    };
   }
 };
 
@@ -386,72 +391,79 @@ export const getAllCountriesPaginated = async (event: APIGatewayProxyEvent): Pro
   try {
     let { page = "1", limit = "10", sort_by = "a_to_z", search } = event.queryStringParameters || {};
     let skip = (parseInt(page) - 1) * parseInt(limit);
-    let sortCriteria: any = {};
+    let sortKey: string;
+    let sortDirection: number = 1;
 
+    // Determine sorting criteria
     switch (sort_by) {
       case "a_to_z":
-        sortCriteria = { name: 1 };
+        sortKey = "name";
+        sortDirection = 1;
         break;
       case "z_to_a":
-        sortCriteria = { name: -1 };
+        sortKey = "name";
+        sortDirection = -1;
         break;
       case "population_high_to_low":
-        sortCriteria = { population: -1 };
+        sortKey = "population";
+        sortDirection = -1;
         break;
       case "population_low_to_high":
-        sortCriteria = { population: 1 };
+        sortKey = "population";
+        sortDirection = 1;
         break;
       case "area_high_to_low":
-        sortCriteria = { area: -1 };
+        sortKey = "area";
+        sortDirection = -1;
         break;
       case "area_low_to_high":
-        sortCriteria = { area: 1 };
+        sortKey = "area";
+        sortDirection = 1;
         break;
       default:
-        sortCriteria = { name: 1 };
+        sortKey = "name";
+        sortDirection = 1;
         break;
     }
 
-    let query: any = {};
+    // Set up query parameters
+    let params: DynamoDB.DocumentClient.ScanInput = {
+      TableName: tableName,
+    };
+
+    // Add search filter if provided
     if (search) {
       const searchRegex = new RegExp(search, "i");
-      query = {
-        $or: [{ name: searchRegex }, { region: searchRegex }, { subregion: searchRegex }],
+      params.FilterExpression =
+        "contains(#name, :search) OR contains(#region, :search) OR contains(#subregion, :search)";
+      params.ExpressionAttributeNames = {
+        "#name": "name",
+        "#region": "region",
+        "#subregion": "subregion",
+      };
+      params.ExpressionAttributeValues = {
+        ":search": searchRegex.source, // Use source to extract regex pattern string
       };
     }
 
-    // Validation of query parameters using Yup schemas
-    await yup
-      .object()
-      .shape({
-        page: yup.string().default("1"),
-        limit: yup.string().default("10"),
-        sort_by: yup
-          .string()
-          .oneOf([
-            "a_to_z",
-            "z_to_a",
-            "population_high_to_low",
-            "population_low_to_high",
-            "area_high_to_low",
-            "area_low_to_high",
-          ])
-          .default("a_to_z"),
-        search: yup.string().default(""),
-      })
-      .validate({
-        page,
-        limit,
-        sort_by,
-        search,
+    // Perform the query
+    const output: any = await docClient.scan(params).promise();
+
+    // Sort the results
+    if (sortKey) {
+      output.Items.sort((a: any, b: any) => {
+        const aValue = a[sortKey];
+        const bValue = b[sortKey];
+        return aValue < bValue ? -1 * sortDirection : aValue > bValue ? 1 * sortDirection : 0;
       });
+    }
 
-    // Example data retrieval, replace it with actual data from your database
-    const totalCountries = 100; // Example total count, replace this with your actual count
+    // Paginate the results
+    const totalCountries = output.Items.length;
     const totalPages = Math.ceil(totalCountries / parseInt(limit));
+    const countries = output.Items.slice(skip, skip + parseInt(limit));
 
-    const countries: any = []; // Example array, replace this with your actual data retrieval
-
+    // Prepare response
     const hasNext = parseInt(page) < totalPages;
     const hasPrev = parseInt(page) > 1;
 
