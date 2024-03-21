@@ -53,12 +53,12 @@ resources:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
         AttributeDefinitions:
-          - AttributeName: countryId
+          - AttributeName: countryID
             AttributeType: S
           - AttributeName: neighborId
             AttributeType: S
         KeySchema:
-          - AttributeName: countryId
+          - AttributeName: countryID
             KeyType: HASH
           - AttributeName: neighborId
             KeyType: RANGE

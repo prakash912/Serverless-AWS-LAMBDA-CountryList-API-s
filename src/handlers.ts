@@ -5,7 +5,7 @@ import * as yup from "yup";
 
 const docClient = new AWS.DynamoDB.DocumentClient();
 const tableName = "CountriesTable";
-const nighbortableName = "NeighborsTable";
+const nighbortableName = "CountryNeighborsTable";
 const headers = {
   "content-type": "application/json",
 };
@@ -26,7 +26,7 @@ const schema = yup.object().shape({
 });
 
 const neighborSchema = yup.object().shape({
-  countryId: yup.string().required(),
+  countryID: yup.string().required(),
   neighborId: yup.string().required(),
   createdAt: yup.date().default(() => new Date()),
 });
@@ -193,13 +193,17 @@ export const listCountry = async (event: APIGatewayProxyEvent): Promise<APIGatew
   };
 };
 
+const schema2 = yup.array().of(yup.string());
+
 export const addNeighbors = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const { countryId } = event.pathParameters || {};
-    const neighborData: string[] = JSON.parse(event.body as string);
+    // Extract country ID from path parameters
+    const { countryID } = event.pathParameters || {};
+    // Parse request body
+    const neighborData: { neighborId: string }[] = JSON.parse(event.body as string);
 
     // Ensure that the country exists
-    const country = await fetchCountryById(countryId as string);
+    const country = await fetchCountryById(countryID as string);
     if (!country) {
       return {
         statusCode: 404,
@@ -215,7 +219,9 @@ export const addNeighbors = async (event: APIGatewayProxyEvent): Promise<APIGate
     const successfulAdditions: string[] = [];
 
     // Iterate through neighbor data
-    for (const neighborId of neighborData) {
+    for (const neighborObj of neighborData) {
+      const neighborId = neighborObj.neighborId;
+
       // Validate neighbor ID
       if (!existingCountryIds.includes(neighborId)) {
         errors.push(`Invalid neighbor country ID: ${neighborId}`);
@@ -223,14 +229,14 @@ export const addNeighbors = async (event: APIGatewayProxyEvent): Promise<APIGate
       }
 
       // Check if neighbor already exists for the country
-      const existingNeighbor = await fetchNeighbor(countryId as string, neighborId);
+      const existingNeighbor = await fetchNeighbor(countryID as string, neighborId);
       if (existingNeighbor) {
         errors.push(`Neighbor with ID ${neighborId} already exists for this country`);
         continue;
       }
 
-      // Add neighbor to NeighborsTable
-      await addNeighbor(countryId as string, neighborId);
+      // Add neighbor to CountryNeighborsTable
+      await addNeighbor(countryID as string, neighborId);
       successfulAdditions.push(neighborId);
     }
 
@@ -262,6 +268,7 @@ export const addNeighbors = async (event: APIGatewayProxyEvent): Promise<APIGate
   }
 };
 
+// Function to fetch all country IDs
 const fetchAllCountryIds = async (): Promise<string[]> => {
   const result = await docClient
     .scan({
@@ -273,12 +280,13 @@ const fetchAllCountryIds = async (): Promise<string[]> => {
   return result.Items ? result.Items.map((item) => item.countryID) : [];
 };
 
-const fetchNeighbor = async (countryId: string, neighborId: string): Promise<any> => {
+// Function to fetch neighbor by country ID and neighbor ID
+const fetchNeighbor = async (countryID: string, neighborId: string): Promise<any> => {
   const output = await docClient
     .get({
       TableName: nighbortableName,
       Key: {
-        countryId: countryId,
+        countryID: countryID,
         neighborId: neighborId,
       },
     })
@@ -287,24 +295,39 @@ const fetchNeighbor = async (countryId: string, neighborId: string): Promise<any
   return output.Item;
 };
 
-const addNeighbor = async (countryId: string, neighborId: string): Promise<void> => {
+// Function to add neighbor to CountryNeighborsTable
+const addNeighbor = async (countryID: string, neighborId: string): Promise<void> => {
   await docClient
     .put({
       TableName: nighbortableName,
       Item: {
-        countryId: countryId,
+        countryID: countryID,
         neighborId: neighborId,
       },
     })
     .promise();
 };
 
+// Function to fetch country by ID
+const fetchCountryById = async (id: string): Promise<any> => {
+  const output = await docClient
+    .get({
+      TableName: tableName,
+      Key: {
+        countryID: id,
+      },
+    })
+    .promise();
+
+  return output.Item;
+};
+
 export const getCountryNeighbors = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
-    const { countryId } = event.pathParameters || {};
+    const { countryID } = event.pathParameters || {};
 
     // Retrieve the country from the CountriesTable
-    const country = await fetchCountryById(countryId as string);
+    const country = await fetchCountryById(countryID as string);
 
     if (!country) {
       return {
@@ -314,8 +337,8 @@ export const getCountryNeighbors = async (event: APIGatewayProxyEvent): Promise<
       };
     }
 
-    // Retrieve neighbors from the NeighborsTable
-    const neighbors = await fetchNeighborsByCountryId(countryId as string);
+    // Retrieve neighbors from the CountryNeighborsTable
+    const neighbors = await fetchNeighborsByCountryId(countryID as string);
 
     if (neighbors.length === 0) {
       return {
@@ -360,26 +383,26 @@ export const getCountryNeighbors = async (event: APIGatewayProxyEvent): Promise<
   }
 };
 
-const fetchCountryById = async (id: string): Promise<any> => {
-  const output = await docClient
-    .get({
-      TableName: tableName,
-      Key: {
-        countryID: id,
-      },
-    })
-    .promise();
+// const fetchCountryById = async (id: string): Promise<any> => {
+//   const output = await docClient
+//     .get({
+//       TableName: tableName,
+//       Key: {
+//         countryID: id,
+//       },
+//     })
+//     .promise();
 
-  return output.Item;
-};
+//   return output.Item;
+// };
 
-const fetchNeighborsByCountryId = async (countryId: string): Promise<string[]> => {
+const fetchNeighborsByCountryId = async (countryID: string): Promise<string[]> => {
   const result = await docClient
     .query({
       TableName: nighbortableName,
-      KeyConditionExpression: "countryId = :countryId",
+      KeyConditionExpression: "countryID = :countryID",
       ExpressionAttributeValues: {
-        ":countryId": countryId,
+        ":countryID": countryID,
       },
     })
     .promise();
