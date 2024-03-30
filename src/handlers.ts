@@ -3,6 +3,10 @@ import AWS, { DynamoDB } from "aws-sdk";
 import { v4 } from "uuid";
 import * as yup from "yup";
 
+// Set the region to the region where your DynamoDB table is located
+AWS.config.update({ region: "ap-south-1" });
+
+// Initialize DynamoDB Document Client
 const docClient = new AWS.DynamoDB.DocumentClient();
 const tableName = "CountriesTable";
 const nighbortableName = "CountryNeighborsTable";
@@ -199,8 +203,10 @@ export const addNeighbors = async (event: APIGatewayProxyEvent): Promise<APIGate
   try {
     // Extract country ID from path parameters
     const { countryID } = event.pathParameters || {};
+
     // Parse request body
-    const neighborData: { neighborId: string }[] = JSON.parse(event.body as string);
+    const requestBody = JSON.parse(event.body as string);
+    const neighborData: { neighborId: string }[] = requestBody.neighbors; // Access 'neighbors' array
 
     // Ensure that the country exists
     const country = await fetchCountryById(countryID as string);

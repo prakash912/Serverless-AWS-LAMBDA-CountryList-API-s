@@ -103,14 +103,14 @@ functions:
     handler: src/handlers.getCountryNeighbors
     events:
       - httpApi:
-          path: /country/{id}/neighbour # Updated path for getting neighbors
+          path: /country/{countryID}/neighbour # Updated path for getting neighbors
           method: get
 
   addNeighbors: # Add new function for adding neighbors
     handler: src/handlers.addNeighbors
     events:
       - httpApi:
-          path: /country/{id}/neighbor # Updated path for adding neighbors
+          path: /country/{countryID}/neighbor # Updated path for adding neighbors
           method: post
 
 plugins:
