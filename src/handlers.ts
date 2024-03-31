@@ -9,7 +9,7 @@ AWS.config.update({ region: "ap-south-1" });
 // Initialize DynamoDB Document Client
 const docClient = new AWS.DynamoDB.DocumentClient();
 const tableName = "CountriesTable";
-const nighbortableName = "CountryNeighborsTable";
+const nighbortableName = "NeighborsTable";
 const headers = {
   "content-type": "application/json",
 };
@@ -241,7 +241,7 @@ export const addNeighbors = async (event: APIGatewayProxyEvent): Promise<APIGate
         continue;
       }
 
-      // Add neighbor to CountryNeighborsTable
+      // Add neighbor to NeighborsTable
       await addNeighbor(countryID as string, neighborId);
       successfulAdditions.push(neighborId);
     }
@@ -301,7 +301,7 @@ const fetchNeighbor = async (countryID: string, neighborId: string): Promise<any
   return output.Item;
 };
 
-// Function to add neighbor to CountryNeighborsTable
+// Function to add neighbor to NeighborsTable
 const addNeighbor = async (countryID: string, neighborId: string): Promise<void> => {
   await docClient
     .put({
@@ -343,7 +343,7 @@ export const getCountryNeighbors = async (event: APIGatewayProxyEvent): Promise<
       };
     }
 
-    // Retrieve neighbors from the CountryNeighborsTable
+    // Retrieve neighbors from the NeighborsTable
     const neighbors = await fetchNeighborsByCountryId(countryID as string);
 
     if (neighbors.length === 0) {
